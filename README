@@ -36,7 +36,7 @@ Example
 
 Install the plugin:
 
-	rails plugin install git@github.com:bmurray/Rails-Encrypted-Cookies.git
+	rails plugin install git://github.com/bmurray/Rails-Encrypted-Cookies.git
 
 Edit `config/initializers/secret_token.rb` and set your encryption key. You should generate 
 a key of exactly 32 hexidecimal characters. 
