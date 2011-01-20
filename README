@@ -1,13 +1,97 @@
-EncryptedCookieJar
+Rails-Encrypted-Cookies
 ==================
 
-Introduction goes here.
+Rails-Encrypted-Cookies is a set of classes that encrypts cookies, creates an 
+enrypted cookie store (similar to rails CookieStore), and provides a sliding
+window for cookie timeouts.
+
+This plugin has been written for Rails 3, and has not been test on any other
+versions. 
+
+This is NOT Phusion's EncryptedCookieStore, nor is it ThinkRelevance's. However
+it does provide the same functionality as both.
+
+This plugin adds 3 new classes to your rails application:
+
+ActionDispatch::Cookies::EncryptedCookieJar
+ActionDispatch::Session::EncryptedCookieStore
+FloatingTime
+
+The EncryptedCookieJar is a general purpose method for encrypting cookies. Remember 
+that only the contents of the cookie are kept safe, not the key. The encryption key 
+must be the same when decrypting the data as it was when encrypting the data. 
+
+EncryptedCookieStore leverages the EncryptedCookieJar to enable encrypted sessions.
+Encrypted sessions allow easy application scalability accross datacenters and 
+geographic locations, while still maintaining a certain level of privacy for the
+session data.
+
+FloatingTime is a simple wrapper class for a Time object which always returns a
+certain time different from the current time. Its primary purpose is to create a
+sliding window for session stores.
 
 
 Example
 =======
 
-Example goes here.
+Install the plugin:
+
+	rails plugin install git@github.com:bmurray/Rails-Encrypted-Cookies.git
+
+Edit `config/initializers/secret_token.rb` and set your encryption key. You should generate 
+a key of exactly 32 hexidecimal characters. 
+	ActionDispatch::Cookies::EncryptedCookieJar.encryption_key = '...'
+
+You can generate a key with, but it should be kept permanent in your initializers. If 
+it changes on every restart of the application, then you will not be able to read the
+cookies in the future.
+
+	ActiveSupport::SecureRandom.hex(32)
+
+Use encrypted cookies:
+
+	cookies.encrypted[:foo] = 'Private data'
+	cookies.permanent.encrypted[:bar] ||= 'Sensitive but old data'
+
+If you wish to use the encrypted cookies for session storage, tell your app to use the 
+encrypted store in `config/initializers/session_store.rb`. This accepts all of the same 
+arguments as the standard :cookie_store:
+
+	APPNAME::Application.config.session_store :encrypted_cookie_store
+
+You can change the encryption algorithm to any that are allowed by OpenSSL:
+
+	ActionDispatch::Cookies::EncryptedCookieJar.data_cipher_type = "aes-256-cfb"
+
+If you wish to use a Floating Window, or Sliding Window (one that pushes the cookie 
+forward in time each time it is seen), add the following to your session_store.rb:
+
+	require 'floating_time'
+	APPNAME::Application.config.session_store :encrypted_cookie_store, :expires => FloatingTime.new(1.hour)
+
+Where the 1.hour is the ammount of time in the future you wish the cookie to expire. 
+
+**NOTE**: Simply setting the expire time is NOT SAFE! The cookie can easily be resent long 
+after you declared that it should expire. Instead, keep an expire counter inside the session 
+and ignore all sessions that are presented past their expiration date. All cookies are susceptible 
+to replay attacks!
 
 
-Copyright (c) 2011 [name of plugin creator], released under the MIT license
+Details
+=======
+
+A cookie is created by first marshaling the data. A random IV is created, which is then used to 
+encrypt the data. Once the data is encrypted, it base64 encodes the IV and encrypted data. The
+encrypted package is then signed using the built-in rails signed cookie methods. This ensures 
+data integrity and prevents Padding Oracle attacks.
+
+Data is decrypted by verifying the signature using the built in rails signing, then decoding the
+encrypted package. The IV is parsed out and used in decryption. The data is then unmarshaled and 
+presented to the calling code.
+
+
+
+
+
+
+Copyright (c) 2011 Brian Murray <brian@bmurray.ca>, released under the MIT license
